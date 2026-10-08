@@ -15,7 +15,8 @@ import {
   RefreshCw,
   Sparkles,
   Zap,
-  Activity
+  Activity,
+  Filter
 } from 'lucide-react';
 import { ReportDelayModal } from './ReportDelayModal';
 
@@ -29,6 +30,7 @@ export const DoctorDashboard: React.FC = () => {
   const [delayModalOpen, setDelayModalOpen] = useState<boolean>(false);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [filterTab, setFilterTab] = useState<'ALL' | 'WAITING' | 'CALLED' | 'EMERGENCY' | 'SENIOR'>('ALL');
 
   const fetchDoctorQueue = async () => {
     try {
@@ -121,6 +123,15 @@ export const DoctorDashboard: React.FC = () => {
 
   const currentPatient = queueStats?.inConsultation || queueStats?.called;
 
+  const activeList = queueStats?.activeList || [];
+  const filteredList = activeList.filter((entry: any) => {
+    if (filterTab === 'WAITING') return entry.status === 'WAITING';
+    if (filterTab === 'CALLED') return entry.status === 'CALLED' || entry.status === 'IN_CONSULTATION';
+    if (filterTab === 'EMERGENCY') return entry.isEmergency || entry.priority === 'EMERGENCY';
+    if (filterTab === 'SENIOR') return entry.priority === 'SENIOR';
+    return true;
+  });
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 text-left">
       
@@ -181,7 +192,7 @@ export const DoctorDashboard: React.FC = () => {
             <Users className="w-4 h-4 text-blue-600" />
           </div>
           <div className="text-3xl font-extrabold text-slate-900 mt-2">
-            {queueStats?.waitingCount || 12}
+            {queueStats?.waitingCount || 0}
           </div>
           <span className="text-[11px] text-blue-600 font-medium">In waiting lounge</span>
         </div>
@@ -317,15 +328,61 @@ export const DoctorDashboard: React.FC = () => {
         )}
       </div>
 
-      {/* Doctor Queue Table */}
+      {/* Doctor Queue Table & Filter Tabs */}
       <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-slate-900">
-            Consultation Waiting Queue
-          </h3>
-          <span className="text-xs text-slate-500">
-            {queueStats?.activeList?.length || 0} active in queue
-          </span>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h3 className="text-base font-bold text-slate-900">
+              Consultation Waiting Queue
+            </h3>
+            <span className="text-xs text-slate-500">
+              {activeList.length} total patient(s) in queue
+            </span>
+          </div>
+
+          {/* Queue Filter Tabs */}
+          <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl">
+            <button
+              onClick={() => setFilterTab('ALL')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                filterTab === 'ALL' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              All ({activeList.length})
+            </button>
+            <button
+              onClick={() => setFilterTab('WAITING')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                filterTab === 'WAITING' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Waiting ({activeList.filter((e: any) => e.status === 'WAITING').length})
+            </button>
+            <button
+              onClick={() => setFilterTab('CALLED')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                filterTab === 'CALLED' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Active ({activeList.filter((e: any) => e.status === 'CALLED' || e.status === 'IN_CONSULTATION').length})
+            </button>
+            <button
+              onClick={() => setFilterTab('EMERGENCY')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                filterTab === 'EMERGENCY' ? 'bg-white text-red-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Emergency ({activeList.filter((e: any) => e.isEmergency || e.priority === 'EMERGENCY').length})
+            </button>
+            <button
+              onClick={() => setFilterTab('SENIOR')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                filterTab === 'SENIOR' ? 'bg-white text-amber-800 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Senior ({activeList.filter((e: any) => e.priority === 'SENIOR').length})
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto rounded-2xl border border-slate-200">
@@ -342,82 +399,90 @@ export const DoctorDashboard: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium">
-              {queueStats?.activeList?.map((entry: any, idx: number) => (
-                <tr
-                  key={entry.id}
-                  className={`hover:bg-slate-50 transition-colors ${
-                    entry.isEmergency ? 'bg-red-50/60 font-bold' : entry.status === 'CALLED' ? 'bg-blue-50/40' : ''
-                  }`}
-                >
-                  <td className="py-3 px-4 text-slate-500">#{entry.position}</td>
-                  <td className="py-3 px-4 font-mono font-bold text-indigo-700">
-                    {entry.tokenNumber}
-                  </td>
-                  <td className="py-3 px-4 text-slate-900 font-semibold">
-                    {entry.patient?.name}
-                    {entry.isEmergency && (
-                      <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] bg-red-600 text-white font-bold">
-                        EMERGENCY
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3 px-4">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        entry.priority === 'EMERGENCY'
-                          ? 'bg-red-100 text-red-800'
-                          : entry.priority === 'SENIOR'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-slate-100 text-slate-700'
-                      }`}
-                    >
-                      {entry.priority}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 font-bold text-slate-800">
-                    {entry.status === 'IN_CONSULTATION' || entry.status === 'CALLED'
-                      ? 'NOW'
-                      : `${entry.estimatedWaitMinutes} min`}
-                  </td>
-                  <td className="py-3 px-4">
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        entry.status === 'IN_CONSULTATION'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : entry.status === 'CALLED'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-amber-100 text-amber-800'
-                      }`}
-                    >
-                      {entry.status}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-right space-x-1.5">
-                    {entry.status === 'WAITING' && (
-                      <button
-                        onClick={async () => {
-                          const res = await queueApi.callNext({ queueId: entry.queueId, entryId: entry.id });
-                          if (res.success) {
-                            showToast(`Called Token ${entry.tokenNumber}`);
-                            fetchDoctorQueue();
-                          }
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px]"
-                      >
-                        Call
-                      </button>
-                    )}
-                    {entry.status === 'CALLED' && (
-                      <button
-                        onClick={() => handleStartConsultation(entry.id)}
-                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px]"
-                      >
-                        Start
-                      </button>
-                    )}
+              {filteredList.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-slate-400 italic">
+                    No patient entries found for the selected filter tab.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredList.map((entry: any) => (
+                  <tr
+                    key={entry.id}
+                    className={`hover:bg-slate-50 transition-colors ${
+                      entry.isEmergency ? 'bg-red-50/60 font-bold' : entry.status === 'CALLED' ? 'bg-blue-50/40' : ''
+                    }`}
+                  >
+                    <td className="py-3 px-4 text-slate-500">#{entry.position}</td>
+                    <td className="py-3 px-4 font-mono font-bold text-indigo-700">
+                      {entry.tokenNumber}
+                    </td>
+                    <td className="py-3 px-4 text-slate-900 font-semibold">
+                      {entry.patient?.name}
+                      {entry.isEmergency && (
+                        <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] bg-red-600 text-white font-bold">
+                          EMERGENCY
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          entry.priority === 'EMERGENCY'
+                            ? 'bg-red-100 text-red-800'
+                            : entry.priority === 'SENIOR'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-slate-100 text-slate-700'
+                        }`}
+                      >
+                        {entry.priority}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 font-bold text-slate-800">
+                      {entry.status === 'IN_CONSULTATION' || entry.status === 'CALLED'
+                        ? 'NOW'
+                        : `${entry.estimatedWaitMinutes} min`}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          entry.status === 'IN_CONSULTATION'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : entry.status === 'CALLED'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}
+                      >
+                        {entry.status}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-right space-x-1.5">
+                      {entry.status === 'WAITING' && (
+                        <button
+                          onClick={async () => {
+                            const res = await queueApi.callNext({ queueId: entry.queueId, entryId: entry.id });
+                            if (res.success) {
+                              showToast(`Called Token ${entry.tokenNumber}`);
+                              fetchDoctorQueue();
+                            }
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px]"
+                        >
+                          Call
+                        </button>
+                      )}
+                      {entry.status === 'CALLED' && (
+                        <button
+                          onClick={() => handleStartConsultation(entry.id)}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px]"
+                        >
+                          Start
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

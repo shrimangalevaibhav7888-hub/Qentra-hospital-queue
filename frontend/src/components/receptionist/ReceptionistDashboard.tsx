@@ -31,6 +31,7 @@ export const ReceptionistDashboard: React.FC = () => {
   const [departments, setDepartments] = useState<any[]>([]);
   const [queues, setQueues] = useState<any[]>([]);
   const [selectedDeptFilter, setSelectedDeptFilter] = useState<string>('ALL');
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<'ALL' | 'WAITING' | 'IN_CONSULTATION' | 'EMERGENCY'>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchResults, setSearchResults] = useState<any>(null);
   const [isSearching, setIsSearching] = useState<boolean>(false);
@@ -107,12 +108,21 @@ export const ReceptionistDashboard: React.FC = () => {
     if (selectedDeptFilter !== 'ALL' && e.departmentCode !== selectedDeptFilter) {
       return false;
     }
+    if (selectedStatusFilter === 'WAITING' && e.status !== 'WAITING') {
+      return false;
+    }
+    if (selectedStatusFilter === 'IN_CONSULTATION' && e.status !== 'IN_CONSULTATION' && e.status !== 'CALLED') {
+      return false;
+    }
+    if (selectedStatusFilter === 'EMERGENCY' && !e.isEmergency && e.priority !== 'EMERGENCY') {
+      return false;
+    }
     return true;
   });
 
   const waitingCount = allEntries.filter((e) => e.status === 'WAITING').length;
-  const inConsultCount = allEntries.filter((e) => e.status === 'IN_CONSULTATION').length;
-  const emergencyCount = allEntries.filter((e) => e.isEmergency).length;
+  const inConsultCount = allEntries.filter((e) => e.status === 'IN_CONSULTATION' || e.status === 'CALLED').length;
+  const emergencyCount = allEntries.filter((e) => e.isEmergency || e.priority === 'EMERGENCY').length;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 text-left">
@@ -151,7 +161,7 @@ export const ReceptionistDashboard: React.FC = () => {
         </button>
       </div>
 
-      {/* Action Buttons Toolbar (6 Main Hospital Queue Operations) */}
+      {/* Action Buttons Toolbar (5 Main Hospital Queue Operations) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         
         <button
@@ -216,10 +226,11 @@ export const ReceptionistDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Search & Department Filters Bar */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+      {/* Search & Tabs Filtering Panel */}
+      <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-5">
         
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+        {/* Top Search & Filter Bar */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
           
           {/* Live Search Bar */}
           <div className="relative flex-1 max-w-md">
@@ -233,45 +244,82 @@ export const ReceptionistDashboard: React.FC = () => {
             />
           </div>
 
-          {/* Department Filter Pills */}
-          <div className="flex items-center space-x-2 overflow-x-auto pb-1 text-xs">
+          {/* Status Tabs */}
+          <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl">
             <button
-              onClick={() => setSelectedDeptFilter('ALL')}
-              className={`px-3 py-1.5 rounded-xl font-bold transition-colors whitespace-nowrap ${
-                selectedDeptFilter === 'ALL'
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              onClick={() => setSelectedStatusFilter('ALL')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                selectedStatusFilter === 'ALL' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              All Departments
+              All Status ({allEntries.length})
             </button>
-            {departments.map((d) => (
-              <button
-                key={d.id}
-                onClick={() => setSelectedDeptFilter(d.code)}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-colors whitespace-nowrap ${
-                  selectedDeptFilter === d.code
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {d.name} ({d.code})
-              </button>
-            ))}
+            <button
+              onClick={() => setSelectedStatusFilter('WAITING')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                selectedStatusFilter === 'WAITING' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Waiting ({waitingCount})
+            </button>
+            <button
+              onClick={() => setSelectedStatusFilter('IN_CONSULTATION')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                selectedStatusFilter === 'IN_CONSULTATION' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              In Rooms ({inConsultCount})
+            </button>
+            <button
+              onClick={() => setSelectedStatusFilter('EMERGENCY')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                selectedStatusFilter === 'EMERGENCY' ? 'bg-white text-red-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Emergency ({emergencyCount})
+            </button>
           </div>
 
         </div>
 
+        {/* Department Filter Tabs */}
+        <div className="flex items-center space-x-2 overflow-x-auto pb-1 text-xs pt-1 border-t border-slate-100">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">OPD Wing:</span>
+          <button
+            onClick={() => setSelectedDeptFilter('ALL')}
+            className={`px-3.5 py-1.5 rounded-xl font-bold transition-colors whitespace-nowrap ${
+              selectedDeptFilter === 'ALL'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            All Wings
+          </button>
+          {departments.map((d) => (
+            <button
+              key={d.id}
+              onClick={() => setSelectedDeptFilter(d.code)}
+              className={`px-3.5 py-1.5 rounded-xl font-bold transition-colors whitespace-nowrap ${
+                selectedDeptFilter === d.code
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {d.name} ({d.code})
+            </button>
+          ))}
+        </div>
+
         {/* Live Search Results Dropdown */}
         {searchResults && (
-          <div className="p-4 bg-indigo-50/70 border border-indigo-100 rounded-2xl space-y-2 text-xs">
+          <div className="p-4 bg-indigo-50/70 border border-indigo-100 rounded-2xl space-y-2 text-xs animate-in fade-in">
             <div className="font-bold text-indigo-950">Search Results for "{searchQuery}":</div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {searchResults.queueEntries.map((e: any) => (
                 <div key={e.id} className="p-2.5 bg-white rounded-xl border border-indigo-200 flex justify-between items-center">
                   <div>
                     <span className="font-mono font-bold text-indigo-700">{e.tokenNumber}</span> - <span className="font-semibold">{e.patient?.name}</span>
-                    <div className="text-[11px] text-slate-500">{e.doctor?.user?.name} • Room {e.doctor?.roomNumber}</div>
+                    <div className="text-[11px] text-slate-500">{e.doctorName || e.doctor?.user?.name} • Room {e.roomNumber || e.doctor?.roomNumber}</div>
                   </div>
                   <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
                     {e.status}
@@ -300,7 +348,7 @@ export const ReceptionistDashboard: React.FC = () => {
               {filteredEntries.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-8 text-center text-slate-400 italic">
-                    No active patients in this queue.
+                    No active patients matching the selected filters.
                   </td>
                 </tr>
               ) : (
@@ -328,8 +376,10 @@ export const ReceptionistDashboard: React.FC = () => {
                         </span>
                       )}
                     </td>
-                    <td className="py-3 px-4 text-slate-600">{entry.departmentName}</td>
-                    <td className="py-3 px-4 text-slate-700">
+                    <td className="py-3 px-4 text-slate-600">
+                      {entry.departmentName}
+                    </td>
+                    <td className="py-3 px-4 text-slate-600">
                       {entry.doctorName} (Room {entry.roomNumber})
                     </td>
                     <td className="py-3 px-4">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSocket } from '../../context/SocketContext';
 import { queueApi } from '../../services/api';
-import { Activity, ArrowLeft, Volume2, Clock, Users, Building2 } from 'lucide-react';
+import { Activity, ArrowLeft, Volume2, VolumeX, Clock, Users, Building2, Sparkles } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import type { PublicDisplayData } from '../../types';
 
@@ -11,6 +11,8 @@ export const PublicQueueDisplay: React.FC = () => {
   const [displayData, setDisplayData] = useState<PublicDisplayData[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString());
   const [lastAnnouncedToken, setLastAnnouncedToken] = useState<string | null>(null);
+  const [selectedDeptFilter, setSelectedDeptFilter] = useState<string>('ALL');
+  const [audioEnabled, setAudioEnabled] = useState<boolean>(true);
 
   const fetchDisplayData = async () => {
     try {
@@ -41,8 +43,8 @@ export const PublicQueueDisplay: React.FC = () => {
     socket.on('public_display_sync', (data) => {
       if (data.action === 'CALL_PATIENT' && data.tokenNumber) {
         setLastAnnouncedToken(data.tokenNumber);
-        // Announce via Web Speech API
-        if ('speechSynthesis' in window) {
+        // Announce via Web Speech API if enabled
+        if (audioEnabled && 'speechSynthesis' in window) {
           const utterance = new SpeechSynthesisUtterance(
             `Token number ${data.tokenNumber.replace('-', ' ')}, please proceed to Room ${data.roomNumber}, ${data.department}`
           );
@@ -52,13 +54,27 @@ export const PublicQueueDisplay: React.FC = () => {
       }
       fetchDisplayData();
     });
-  }, [socket]);
+  }, [socket, audioEnabled]);
+
+  const handleTestAudio = () => {
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(
+        'Attention please. Token CARD 013, please proceed to Room 203, Cardiology OPD.'
+      );
+      utterance.rate = 0.9;
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  const filteredDisplay = selectedDeptFilter === 'ALL'
+    ? displayData
+    : displayData.filter((d) => d.departmentCode === selectedDeptFilter);
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-4 sm:p-8 flex flex-col justify-between select-none">
       
       {/* Top Header for Hospital Waiting Room Display */}
-      <div className="flex flex-wrap items-center justify-between border-b-2 border-slate-800 pb-5 mb-8 gap-4">
+      <div className="flex flex-wrap items-center justify-between border-b-2 border-slate-800 pb-5 mb-6 gap-4">
         
         <div className="flex items-center space-x-4">
           <button
@@ -86,9 +102,29 @@ export const PublicQueueDisplay: React.FC = () => {
           </div>
         </div>
 
-        {/* Live Clock and Status Indicator */}
-        <div className="flex items-center space-x-6 text-right">
-          <div className="hidden sm:block">
+        {/* Live Clock and Status Indicator & Controls */}
+        <div className="flex items-center space-x-4 text-right">
+          <button
+            onClick={() => setAudioEnabled(!audioEnabled)}
+            className={`p-2.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 ${
+              audioEnabled
+                ? 'bg-indigo-600/30 border-indigo-500/50 text-indigo-300'
+                : 'bg-slate-900 border-slate-800 text-slate-500'
+            }`}
+            title="Toggle Voice Announcements"
+          >
+            {audioEnabled ? <Volume2 className="w-4 h-4 text-indigo-400" /> : <VolumeX className="w-4 h-4 text-slate-500" />}
+            <span>{audioEnabled ? 'Audio ON' : 'Audio Muted'}</span>
+          </button>
+
+          <button
+            onClick={handleTestAudio}
+            className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800"
+          >
+            Test Call Voice
+          </button>
+
+          <div className="hidden sm:block pl-2 border-l border-slate-800">
             <div className="flex items-center justify-end gap-2 text-emerald-400 text-xs font-bold uppercase tracking-widest">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
               <span>LIVE BROADCAST</span>
@@ -101,9 +137,36 @@ export const PublicQueueDisplay: React.FC = () => {
 
       </div>
 
+      {/* Department Filter Tabs for Kiosk */}
+      <div className="flex items-center space-x-2 overflow-x-auto pb-4 mb-4 text-xs">
+        <button
+          onClick={() => setSelectedDeptFilter('ALL')}
+          className={`px-4 py-2 rounded-xl font-bold transition-all whitespace-nowrap ${
+            selectedDeptFilter === 'ALL'
+              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+              : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white border border-slate-800'
+          }`}
+        >
+          All Hospital Wings
+        </button>
+        {displayData.map((d) => (
+          <button
+            key={d.departmentId}
+            onClick={() => setSelectedDeptFilter(d.departmentCode)}
+            className={`px-4 py-2 rounded-xl font-bold transition-all whitespace-nowrap ${
+              selectedDeptFilter === d.departmentCode
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white border border-slate-800'
+            }`}
+          >
+            {d.departmentName}
+          </button>
+        ))}
+      </div>
+
       {/* Grid of Department Doctor Consultation Rooms */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 my-auto">
-        {displayData.map((dept) =>
+        {filteredDisplay.map((dept) =>
           dept.doctors.map((doc) => (
             <div
               key={doc.doctorId}
@@ -181,7 +244,7 @@ export const PublicQueueDisplay: React.FC = () => {
       <div className="mt-8 pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
         <span className="flex items-center gap-2">
           <Volume2 className="w-4 h-4 text-indigo-400 animate-pulse" />
-          <span>Automated bilingual room announcements enabled for summoned tokens.</span>
+          <span>Automated bilingual voice room announcements enabled for called tokens.</span>
         </span>
         <span className="text-slate-400 font-mono">
           Powered by Qentra Healthcare Dynamic Engine

@@ -63,7 +63,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setAuthToken(data.token);
         setToken(data.token);
         setUser(data.user);
-        // Redirect according to role
         if (data.user.role === 'PATIENT') setActiveView('patient');
         else if (data.user.role === 'DOCTOR') setActiveView('doctor');
         else if (data.user.role === 'RECEPTIONIST') setActiveView('receptionist');
@@ -79,13 +78,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const data = await authApi.register({
         ...userData,
-        role: userData.role || 'PATIENT' // Default public signup role = PATIENT
+        role: userData.role || 'PATIENT'
       });
       if (data.success && data.token) {
         setAuthToken(data.token);
         setToken(data.token);
         setUser(data.user);
-        // Redirect according to role
         if (data.user.role === 'PATIENT') setActiveView('patient');
         else if (data.user.role === 'DOCTOR') setActiveView('doctor');
         else if (data.user.role === 'RECEPTIONIST') setActiveView('receptionist');
@@ -126,7 +124,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const toggleSeniorEasyView = () => {
-    setIsSeniorEasyView(prev => !prev);
+    setIsSeniorEasyView((prev) => !prev);
   };
 
   return (

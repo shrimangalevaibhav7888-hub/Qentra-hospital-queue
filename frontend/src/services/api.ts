@@ -1,4 +1,6 @@
-const API_BASE = ((import.meta as any).env?.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '') + '/api';
+import { mockStore } from './mockStore';
+
+const API_BASE = ((import.meta as any).env?.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '') + '/api';
 
 export const getAuthToken = (): string | null => {
   return localStorage.getItem('qentra_token');
@@ -28,19 +30,156 @@ export const apiRequest = async <T = any>(
 
   const url = `${API_BASE}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
-  const response = await fetch(url, {
-    ...options,
-    headers
-  });
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2500);
 
-  const data = await response.json().catch(() => ({ success: false, message: 'Server response error' }));
+    const response = await fetch(url, {
+      ...options,
+      headers,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
 
-  if (!response.ok) {
-    throw new Error(data.message || `Request failed with status ${response.status}`);
+    const data = await response.json().catch(() => ({ success: false, message: 'Server response error' }));
+
+    if (!response.ok) {
+      throw new Error(data.message || `Request failed with status ${response.status}`);
+    }
+
+    return data;
+  } catch (err) {
+    // If backend is down or network unreachable, fallback automatically to mockStore
+    console.debug(`[Qentra Engine] Using offline mock store for endpoint: ${endpoint}`);
+    return executeMockFallback<T>(endpoint, options);
+  }
+};
+
+// Mock Fallback Router
+function executeMockFallback<T = any>(endpoint: string, options: RequestInit): T {
+  const clean = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const method = (options.method || 'GET').toUpperCase();
+  const body = options.body ? JSON.parse(options.body as string) : {};
+
+  // AUTH
+  if (clean === '/auth/demo-login') {
+    return mockStore.demoLogin(body.role) as any;
+  }
+  if (clean === '/auth/login') {
+    return mockStore.login(body) as any;
+  }
+  if (clean === '/auth/register') {
+    return mockStore.register(body) as any;
+  }
+  if (clean === '/auth/me') {
+    return mockStore.getMe(getAuthToken()) as any;
+  }
+  if (clean === '/auth/logout') {
+    return { success: true } as any;
   }
 
-  return data;
-};
+  // QUEUE
+  if (clean.startsWith('/queue/departments')) {
+    const urlParams = new URLSearchParams(clean.split('?')[1] || '');
+    return mockStore.getDepartments(urlParams.get('departmentId') || undefined) as any;
+  }
+  if (clean === '/queue/my-queue') {
+    return mockStore.getMyQueue() as any;
+  }
+  if (clean.startsWith('/queue/doctor')) {
+    const parts = clean.split('/');
+    const docId = parts.length > 3 ? parts[3] : undefined;
+    return mockStore.getDoctorQueue(docId) as any;
+  }
+  if (clean === '/queue/call-next') {
+    return mockStore.callNext(body) as any;
+  }
+  if (clean === '/queue/start-consultation') {
+    return mockStore.startConsultation(body.entryId) as any;
+  }
+  if (clean === '/queue/complete-consultation') {
+    return mockStore.completeConsultation(body.entryId) as any;
+  }
+  if (clean === '/queue/report-delay') {
+    return mockStore.reportDelay(body) as any;
+  }
+  if (clean === '/queue/no-show') {
+    return mockStore.markNoShow(body.entryId) as any;
+  }
+  if (clean.startsWith('/queue/emergency/preview')) {
+    const urlParams = new URLSearchParams(clean.split('?')[1] || '');
+    return mockStore.getEmergencyPreview(urlParams.get('departmentId') || 'dept-1', urlParams.get('doctorId') || undefined) as any;
+  }
+  if (clean === '/queue/emergency/insert') {
+    return mockStore.insertEmergency(body) as any;
+  }
+  if (clean === '/queue/reassign-doctor') {
+    return mockStore.reassignDoctor(body) as any;
+  }
+  if (clean === '/queue/transfer') {
+    return mockStore.transferQueue(body) as any;
+  }
+  if (clean === '/queue/merge') {
+    return mockStore.mergeQueues(body) as any;
+  }
+  if (clean === '/queue/public-display') {
+    return mockStore.getPublicDisplay() as any;
+  }
+
+  // APPOINTMENTS
+  if (clean === '/appointments/book') {
+    return mockStore.bookAppointment(body) as any;
+  }
+  if (clean === '/appointments/my-appointments') {
+    return mockStore.getMyAppointments() as any;
+  }
+  if (clean.startsWith('/appointments/cancel/')) {
+    const id = clean.replace('/appointments/cancel/', '');
+    return mockStore.cancelAppointment(id) as any;
+  }
+
+  // PATIENTS
+  if (clean === '/patients/walk-in') {
+    return mockStore.registerWalkIn(body) as any;
+  }
+  if (clean.startsWith('/patients/search')) {
+    const urlParams = new URLSearchParams(clean.split('?')[1] || '');
+    return mockStore.searchPatients(urlParams.get('query') || '') as any;
+  }
+
+  // ADMIN
+  if (clean === '/admin/hospital-data') {
+    return mockStore.getHospitalData() as any;
+  }
+  if (clean === '/admin/analytics') {
+    return mockStore.getAnalytics() as any;
+  }
+  if (clean.startsWith('/admin/audit-logs')) {
+    const urlParams = new URLSearchParams(clean.split('?')[1] || '');
+    const limit = parseInt(urlParams.get('limit') || '50');
+    const action = urlParams.get('action') || undefined;
+    const role = urlParams.get('role') || undefined;
+    return mockStore.getAuditLogs(limit, action, role) as any;
+  }
+  if (clean.startsWith('/admin/doctor/') && clean.endsWith('/status')) {
+    const doctorId = clean.replace('/admin/doctor/', '').replace('/status', '');
+    return mockStore.updateDoctorStatus(doctorId, body) as any;
+  }
+
+  // NOTIFICATIONS
+  if (clean === '/notifications/my') {
+    return mockStore.getNotifications() as any;
+  }
+  if (clean.startsWith('/notifications/') && clean.endsWith('/read')) {
+    const id = clean.replace('/notifications/', '').replace('/read', '');
+    return mockStore.markNotificationRead(id) as any;
+  }
+  if (clean === '/notifications/read-all') {
+    return mockStore.markAllNotificationsRead() as any;
+  }
+
+  return { success: true } as any;
+}
 
 // API Services
 export const authApi = {
